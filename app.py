@@ -8,22 +8,13 @@
 
 import streamlit as st
 import gspread
-from google.oauth2.service_account import Credentials
 from datetime import datetime
-import json
-import os
 
 # ──────────────────────────────────────────────
 # CONFIGURAÇÃO
 # ──────────────────────────────────────────────
 VALOR_HORA = 7.0  # € por hora
-SHEET_NAME = "Registo de Ponto"  # Nome da folha no Google Sheets
-
-# Scopes necessários para ler/escrever no Google Sheets
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-]
+SHEET_NAME = "Registo de Ponto"  # Nome da folha no Google Sheets (exato!)
 
 
 # ──────────────────────────────────────────────
@@ -33,23 +24,31 @@ def conectar_sheets():
     """
     Liga ao Google Sheets usando as credenciais guardadas.
     No Streamlit Cloud, as credenciais vêm de st.secrets.
-    Localmente, lê o ficheiro credenciais.json.
+    Usa a API moderna do gspread (v6+): ServiceAccountCredentials.
     """
     try:
-        # Tenta usar st.secrets (Streamlit Cloud)
+        # Streamlit Cloud: lê de st.secrets
         creds_dict = dict(st.secrets["gcp_service_account"])
-        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-    except Exception:
+        # Garante que private_key tem newlines reais (o TOML pode escapar \n)
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        client = gspread.service_account_from_dict(creds_dict)
+    except KeyError:
         # Fallback: ficheiro local credenciais.json
-        creds = Credentials.from_service_account_file("credenciais.json", scopes=SCOPES)
-
-    client = gspread.authorize(creds)
+        client = gspread.service_account(filename="credenciais.json")
     return client
 
 
 def obter_folha(client):
     """Abre a folha de cálculo e devolve o primeiro separador."""
-    spreadsheet = client.open(SHEET_NAME)
+    try:
+        spreadsheet = client.open(SHEET_NAME)
+    except gspread.exceptions.SpreadsheetNotFound:
+        raise Exception(
+            f"Folha '{SHEET_NAME}' não encontrada. "
+            "Verifica: 1) o nome é exatamente 'Registo de Ponto' "
+            "2) partilhaste com o email do service account."
+        )
     worksheet = spreadsheet.sheet1
     return worksheet
 
