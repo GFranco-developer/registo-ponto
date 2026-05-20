@@ -1,3 +1,5 @@
+#G.Franco-developer
+
 """
 ╔══════════════════════════════════════════════════════════════╗
 ║         REGISTO DE PONTO — RESTAURAÇÃO                       ║
